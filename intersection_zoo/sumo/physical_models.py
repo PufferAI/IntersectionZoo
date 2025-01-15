@@ -29,6 +29,7 @@ from intersection_zoo.env.config import IntersectionZooEnvConfig
 from intersection_zoo.sumo.constants import ELECTRIC, MOVES_ROAD_GRADE_RESOLUTION, REGULAR
 from intersection_zoo.sumo.utils import is_rl
 from intersection_zoo.sumo.vehicle import Vehicle
+from intersection_zoo import RESOURCES_PATH
 
 import torch
 from torch import nn
@@ -65,7 +66,7 @@ class FuelEmissionsModels:
         ] = {}
         """ cache for above decision trees,
             indexed by (in order) vehicle emissions type, speed, accel, road grade, temp, humidity"""
-        minimums_csv = pd.read_csv(Path("resources/fuel_models/idling_consumption.csv"))
+        minimums_csv = pd.read_csv(RESOURCES_PATH / 'fuel_models' / 'idling_consumption.csv')
         # dicts of fuel_type, year, v type, temp, humidity
         self.minimums = defaultdict(
             lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {})))
@@ -150,7 +151,7 @@ class FuelEmissionsModels:
                     self.moves_emissions_models[moves_veh_type] = SurrogateNN()
                     self.moves_emissions_models[moves_veh_type].load_state_dict(
                         torch.load(
-                            Path(f"resources/fuel_models/{moves_veh_type}.pt"),
+                            RESOURCES_PATH / 'fuel_models' / f"{moves_veh_type}.pt",
                             map_location=torch.device("cpu"),
                         )
                     )

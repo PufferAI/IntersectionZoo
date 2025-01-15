@@ -35,6 +35,7 @@ class IntersectionZooEnvConfig(NamedTuple):
 
     task_context: TaskContext | None = None
     """ defines the environment, see the TaskContext class. Optional, can also directly be given to the env."""
+    max_agents: int = 64
     ### Outputs and monitoring
     logging: bool = True
     """ Verbose logging """

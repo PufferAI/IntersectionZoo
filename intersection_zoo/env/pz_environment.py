@@ -62,10 +62,11 @@ class IntersectionZooPZEnv(ParallelEnv):
         self.vehicle_metrics = defaultdict(lambda: defaultdict(lambda: []))
         self.uncontrolled_region_metrics = defaultdict(lambda: [])
         self.warmup_vehicles: Set[str] = set()
-        self._agent_ids: Set[str] = {'mock'}
         self.force_visualize = False
-
-        self.action_space = (
+        self.possible_agents = [i for i in range(self.config.max_agents)]
+    
+    def action_space(self, agent_id):
+        return (
             GymDict(
                 {
                     # the boundaries of box are not followed, -20 and 10 should include all possible vehicle types
@@ -78,6 +79,7 @@ class IntersectionZooPZEnv(ParallelEnv):
             else Box(low=-20, high=10, shape=(1,), dtype=np.float32)  
         )
 
+    def observation_space(self, agent_id):
         speed_space = Box(npa(0), npa(GLOBAL_MAX_SPEED / SPEED_NORMALIZATION))
 
         other_vehicle_space = GymDict(
@@ -91,7 +93,7 @@ class IntersectionZooPZEnv(ParallelEnv):
             }
         )
 
-        self.observation_space = GymDict(
+        return GymDict(
             {
                 "speed": speed_space,
                 "relative_distance": Box(
@@ -136,7 +138,7 @@ class IntersectionZooPZEnv(ParallelEnv):
         """
         Custom Env class reset method.
         """
-        super().reset(seed=seed, options=options)
+        #super().reset(seed=seed, options=options)
         self.traci = start_sumo(
             self.config.update({"visualize_sumo": True}) if self.force_visualize else self.config,
             self.traci,
@@ -155,48 +157,77 @@ class IntersectionZooPZEnv(ParallelEnv):
         self.vehicle_metrics = defaultdict(lambda: defaultdict(lambda: []))
         self.uncontrolled_region_metrics = defaultdict(lambda: [])
         self.warmup_vehicles = set()
-        self._agent_ids = {'mock'}
 
-        obs, _, _, _, _ = self.step({}, warmup=True)
-        for _ in range(self.config.warmup_steps):
+        self.agent_map = {}
+        self.inv_agent_map = {}
+        self.agent_map_n = 0
+
+        self.map_agents()
+        while len(self.agents) == 0:
             obs, _, _, _, _ = self.step({}, warmup=True)
+            self.map_agents()
 
         return obs, {}
 
+    def map_agents(self):
+        agents = []
+        raw_agents = []
+        for v_id, vehicle in self.traffic_state.vehicles.items():
+            if not vehicle.is_rl:
+                continue
+
+            raw_agents.append(v_id)
+
+            if v_id in self.agent_map:
+                agents.append(self.agent_map[v_id])
+            else:
+                self.agent_map[v_id] = self.agent_map_n
+                agents.append(self.agent_map_n)
+                self.agent_map_n += 1
+
+        self.inv_agent_map = {v_id: k for k, v_id in self.agent_map.items()}
+        self.raw_agents = raw_agents
+        self.agents = agents
+
     def step(self, action_dict, warmup: bool = False):
         if not warmup:
-            for v_id, action in action_dict.items():
-                if v_id != 'mock':
-                    vehicle = self.traffic_state.vehicles[v_id]
+            for id, action in action_dict.items():
+                v_id = self.inv_agent_map[id]
+                vehicle = self.traffic_state.vehicles[v_id]
 
-                    sumo_speed = self.traci.vehicle.getSpeedWithoutTraCI(v_id)
-                    diff = sumo_speed - vehicle.previous_step_idm_speed
-                    vehicle.previous_step_idm_speed = (
-                        self.traffic_state.get_idm_accel(vehicle)
-                        * self.config.sim_step_duration
-                        + vehicle.speed
+                sumo_speed = self.traci.vehicle.getSpeedWithoutTraCI(v_id)
+                diff = sumo_speed - vehicle.previous_step_idm_speed
+                    
+                # TODO: Why does this happen?
+                if vehicle.lane_id == '':
+                    continue
+
+                vehicle.previous_step_idm_speed = (
+                    self.traffic_state.get_idm_accel(vehicle)
+                    * self.config.sim_step_duration
+                    + vehicle.speed
+                )
+
+                if self.config.control_lane_change:
+                    if not is_internal_lane(vehicle.lane_id):
+                        vehicle.change_lane_relative(action["lane_change"] - 1)
+                    self.traffic_state.accel(
+                        vehicle, action["accel"][0], use_speed_factor=False
                     )
-
-                    if self.config.control_lane_change:
-                        if not is_internal_lane(vehicle.lane_id):
-                            vehicle.change_lane_relative(action["lane_change"] - 1)
+                else:
+                    # We only apply RL accel to the vehicle if SUMO doesn't slow down the vehicle to do a lane change
+                    # We identify if SUMO slows down to do lane change by computing theoretical IDM speed, and taking the
+                    # diff with the speed SUMO actually wants to apply.
+                    if abs(diff) < 0.5 or abs(sumo_speed - vehicle.speed) < 0.5:
                         self.traffic_state.accel(
-                            vehicle, action["accel"][0], use_speed_factor=False
+                            vehicle, action[0], use_speed_factor=False
                         )
-                    else:
-                        # We only apply RL accel to the vehicle if SUMO doesn't slow down the vehicle to do a lane change
-                        # We identify if SUMO slows down to do lane change by computing theoretical IDM speed, and taking the
-                        # diff with the speed SUMO actually wants to apply.
-                        if abs(diff) < 0.5 or abs(sumo_speed - vehicle.speed) < 0.5:
-                            self.traffic_state.accel(
-                                vehicle, action[0], use_speed_factor=False
-                            )
 
-                    # color vehicles according to whether they'll turn at the intersection
-                    if vehicle.direction != 0:
-                        self.traffic_state.set_color(vehicle, CYAN)
-                    else:
-                        self.traffic_state.set_color(vehicle, RED)
+                # color vehicles according to whether they'll turn at the intersection
+                if vehicle.direction != 0:
+                    self.traffic_state.set_color(vehicle, CYAN)
+                else:
+                    self.traffic_state.set_color(vehicle, RED)
 
         self.traffic_state.step()
         self._curr_step += 1
@@ -204,22 +235,18 @@ class IntersectionZooPZEnv(ParallelEnv):
 
         reward = self._get_reward(action_dict.keys())
 
-        self._agent_ids = {
-            v_id
-            for v_id, vehicle in self.traffic_state.current_vehicles.items()
-            if vehicle.is_rl
-        }.union({'mock'})
-
-        obs = self._get_obs(self._agent_ids)
+        self.map_agents()
+        obs = self._get_obs(self.raw_agents)
+        obs = {self.agent_map[k]: v for k, v in obs.items()}
 
         v_finished_during_step = {
-            v_id for v_id in action_dict.keys() if v_id not in self._agent_ids
+            v_id for v_id in action_dict.keys() if v_id not in self.agents
         }
 
         # We consider the simulation over is too many vehicles are present, and they are too slow
         if (
             not warmup
-            and len(self._agent_ids) > 150
+            and len(self.agents) > 150
             and self._get_average_speed() < 0.5
         ):
             termination = True
@@ -235,16 +262,13 @@ class IntersectionZooPZEnv(ParallelEnv):
             truncation = False
 
         terminated = {
-            **{v_id: termination for v_id in self._agent_ids},
+            **{v_id: termination for v_id in self.agents},
             **{v_id: True for v_id in v_finished_during_step},
         }
-        terminated["__all__"] = termination
         truncated = {v_id: truncation for v_id in terminated}
 
-        # if self._curr_step < self.config.warmup_steps + 1:
-        #     self._agent_ids.add('mock')
-        # elif self._curr_step == self.config.warmup_steps + 1:
-        #     return self.observation_space_sample(), {'mock': 0}, {'mock': True}, {'mock': False}, {}
+        if True in list(terminated.values()):
+            breakpoint()
 
         return obs, reward, terminated, truncated, {}
 
@@ -862,7 +886,7 @@ class IntersectionZooPZEnv(ParallelEnv):
         return {
             vehicle_id: self._get_vehicle_obs(
                 self.traffic_state.vehicles[vehicle_id], time
-            ) if vehicle_id != 'mock' else self.observation_space.sample()
+            ) if vehicle_id != 'mock' else self.observation_space(0).sample()
             for vehicle_id in current_rl_vehicle_list
         }
 
@@ -1016,27 +1040,25 @@ class IntersectionZooPZEnv(ParallelEnv):
         result = {}
         num_stopped_vehicles = 0
 
-        for v_id in vehicle_list:
-            if v_id == 'mock':
-                result[v_id] = 0
-            else:
-                vehicle = self.traffic_state.vehicles[v_id]
-                num_stopped_vehicles += vehicle.speed < self.config.threshold
-                result[v_id] = (
-                    fleet_rewards[vehicle.platoon][vehicle.lane_index]
-                    if (
-                        random.random() < self.config.fleet_reward_ratio
-                        and vehicle.platoon in fleet_rewards
-                        and vehicle.lane_index in fleet_rewards[vehicle.platoon]
-                    )
-                    else individual_reward(vehicle)
+        for id in vehicle_list:
+            v_id = self.inv_agent_map[id]
+            vehicle = self.traffic_state.vehicles[v_id]
+            num_stopped_vehicles += vehicle.speed < self.config.threshold
+            result[id] = (
+                fleet_rewards[vehicle.platoon][vehicle.lane_index]
+                if (
+                    random.random() < self.config.fleet_reward_ratio
+                    and vehicle.platoon in fleet_rewards
+                    and vehicle.lane_index in fleet_rewards[vehicle.platoon]
                 )
-                if self.config.fleet_stop_penalty is not None:
-                    result[v_id] -= (
-                        self.config.fleet_stop_penalty
-                        * num_stopped_vehicles
-                        / len(vehicle_list)
-                    )
+                else individual_reward(vehicle)
+            )
+            if self.config.fleet_stop_penalty is not None:
+                result[id] -= (
+                    self.config.fleet_stop_penalty
+                    * num_stopped_vehicles
+                    / len(vehicle_list)
+                )
 
         return result
 

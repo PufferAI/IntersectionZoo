@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import List, NamedTuple, Union
 
 from intersection_zoo.sumo.utils import get_directions, get_lane_counts
+from intersection_zoo import DATA_PATH
 
 """
 Specifies whether approaches have traffic at the same time or not:
@@ -124,6 +125,9 @@ class PathTaskContext(NamedTuple):
     def list_tasks(self, add_0_penrate: bool = False) -> List["TaskContext"]:
         def get_valid_approaches(path: Path):
             return [e[0] for e in get_lane_counts([approach + "2TL" for approach in get_directions(path)], path, False).keys()]
+
+        # Hacky way to get the absolute path to dataset
+        data_path = Path(DATA_PATH) / self.dir
         
         return [
             PathTaskContext(
@@ -137,7 +141,7 @@ class PathTaskContext(NamedTuple):
             for path in (
                 [self.dir]
                 if (self.dir / "net.net.xml").exists()
-                else self.dir.glob("*")
+                else data_path.glob("*")
             )
             if path.is_dir()
             for approach in (

@@ -25,6 +25,8 @@ from typing import Dict
 
 import pandas as pd
 
+from intersection_zoo import RESOURCES_PATH
+
 RL_VEHICLE = {
     "speedFactor": "1",
     "accel": "2.6",
@@ -46,7 +48,7 @@ class VehicleTypeParamsSampler:
     def __init__(self):
         self.precomputed_samples = {
             vehicle_type: pd.read_csv(
-                Path("resources/idm_params") / f"{vehicle_type}.csv"
+                RESOURCES_PATH / 'idm_params' / f"{vehicle_type}.csv"
             )
             .rename(
                 columns={
@@ -86,7 +88,7 @@ class VehicleTypeParamsSampler:
         }
 
     def get_vehicle_mix(self) -> Dict[str, float]:
-        data = pd.read_csv(Path("resources/vehicle_mix.csv"))
+        data = pd.read_csv(RESOURCES_PATH / "vehicle_mix.csv")
         return pd.Series(data["probability"].values, index=data["name"]).to_dict()
 
     def _veh_type_mix_mapping(self, v_type_id: str, usecase: str) -> str:

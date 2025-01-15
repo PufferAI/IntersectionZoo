@@ -1,6 +1,8 @@
 from setuptools import find_packages, setup
 from itertools import chain
 
+# export SUMO_HOME=/usr/share/sumo
+
 setup(
     name="intersection_zoo",
     description="Intersection Zoo traffic environment",
