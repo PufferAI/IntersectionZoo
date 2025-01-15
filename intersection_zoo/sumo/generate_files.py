@@ -31,10 +31,10 @@ from xml.etree.ElementTree import Element
 
 import numpy as np
 import sumolib
-from env.config import IntersectionZooEnvConfig
-from env.task_context import NetGenTaskContext, PathTaskContext, TaskContext
-from sumo.utils import get_directions, get_lane_counts, get_splited_edges
-from sumo.vehicle_mix import RL_VEHICLE, VehicleTypeParamsSampler
+from intersection_zoo.env.config import IntersectionZooEnvConfig
+from intersection_zoo.env.task_context import NetGenTaskContext, PathTaskContext, TaskContext
+from intersection_zoo.sumo.utils import get_directions, get_lane_counts, get_splited_edges
+from intersection_zoo.sumo.vehicle_mix import RL_VEHICLE, VehicleTypeParamsSampler
 
 SECONDS_PER_HOUR = 3600
 

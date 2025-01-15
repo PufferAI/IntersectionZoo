@@ -25,11 +25,12 @@ from pathlib import Path
 from typing import Dict, Tuple
 
 import pandas as pd
+from intersection_zoo.env.config import IntersectionZooEnvConfig
+from intersection_zoo.sumo.constants import ELECTRIC, MOVES_ROAD_GRADE_RESOLUTION, REGULAR
+from intersection_zoo.sumo.utils import is_rl
+from intersection_zoo.sumo.vehicle import Vehicle
+
 import torch
-from env.config import IntersectionZooEnvConfig
-from sumo.constants import ELECTRIC, MOVES_ROAD_GRADE_RESOLUTION, REGULAR
-from sumo.utils import is_rl
-from sumo.vehicle import Vehicle
 from torch import nn
 
 """

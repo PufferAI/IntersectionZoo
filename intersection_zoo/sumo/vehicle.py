@@ -24,9 +24,9 @@ import logging
 from typing import Dict, List, Optional
 
 import traci
-from env.config import IntersectionZooEnvConfig
-from env.task_context import TaskContext
-from sumo.utils import (get_edge_id, get_green_phase_timings,
+from intersection_zoo.env.config import IntersectionZooEnvConfig
+from intersection_zoo.env.task_context import TaskContext
+from intersection_zoo.sumo.utils import (get_edge_id, get_green_phase_timings,
                         get_lane_index_from_lane_id, get_turn_signal_direction,
                         get_vehicle_emissions_type, is_internal_lane, is_rl,
                         straight_connection)

@@ -30,30 +30,28 @@ from statistics import mean
 from typing import Dict, Optional, Set, Tuple
 from pathlib import Path
 
-from env.config import IntersectionZooEnvConfig
-from env.task_context import PathTaskContext, TaskContext
 from gymnasium.spaces import Box
 from gymnasium.spaces import Dict as GymDict
 from gymnasium.spaces import Discrete
-from ray.rllib.env.apis.task_settable_env import TaskSettableEnv
-from ray.rllib.env.env_context import EnvContext
-from ray.rllib.env.multi_agent_env import MultiAgentEnv
-from ray.rllib.utils.typing import AgentID, MultiAgentDict, MultiEnvDict
-from sumo.constants import (CYAN, ELECTRIC, GLOBAL_MAX_LANE_LENGTH,
+from pettingzoo.utils.env import ParallelEnv
+
+from intersection_zoo.env.config import IntersectionZooEnvConfig
+from intersection_zoo.env.task_context import PathTaskContext, TaskContext
+from intersection_zoo.sumo.constants import (CYAN, ELECTRIC, GLOBAL_MAX_LANE_LENGTH,
                             GLOBAL_MAX_SPEED, LANE_LENGTH_NORMALIZATION,
                             MAX_TL_CYCLE, RED, REGULAR, SPEED_NORMALIZATION,
                             TL_CYCLE_NORMALIZATION)
-from sumo.sumo import start_sumo
-from sumo.traffic_state import TrafficState, Vehicle
-from sumo.utils import get_remaining_time, is_internal_lane, is_rl
+from intersection_zoo.sumo.sumo import start_sumo
+from intersection_zoo.sumo.traffic_state import TrafficState, Vehicle
+from intersection_zoo.sumo.utils import get_remaining_time, is_internal_lane, is_rl
 
 
-class IntersectionZooEnv(MultiAgentEnv, TaskSettableEnv):
+class IntersectionZooPZEnv(ParallelEnv):
     """
     RL env interfacing Rllib multi agent API with SUMO.
     """
 
-    def __init__(self, config: EnvContext):
+    def __init__(self, config):
         super().__init__()
         self.config: IntersectionZooEnvConfig = config["intersectionzoo_env_config"]
         self.task_context: TaskContext | None = self.config.task_context
@@ -134,8 +132,7 @@ class IntersectionZooEnv(MultiAgentEnv, TaskSettableEnv):
     def reset(
         self,
         seed: int | None = None,
-        options: Dict | None = None,
-    ) -> Tuple[MultiAgentDict, MultiAgentDict]:
+        options: Dict | None = None):
         """
         Custom Env class reset method.
         """
@@ -166,11 +163,7 @@ class IntersectionZooEnv(MultiAgentEnv, TaskSettableEnv):
 
         return obs, {}
 
-    def step(
-        self, action_dict: MultiAgentDict, warmup: bool = False
-    ) -> Tuple[
-        MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict
-    ]:
+    def step(self, action_dict, warmup: bool = False):
         if not warmup:
             for v_id, action in action_dict.items():
                 if v_id != 'mock':
@@ -843,16 +836,16 @@ class IntersectionZooEnv(MultiAgentEnv, TaskSettableEnv):
     def set_task(self, task: TaskContext) -> None:
         self.task_context = task
 
-    def action_space_sample(self, agent_ids: list = None) -> MultiAgentDict:
+    def action_space_sample(self, agent_ids: list = None):
         return {v_id: self.action_space.sample() for v_id in self._agent_ids}
 
-    def observation_space_sample(self, agent_ids: list = None) -> MultiEnvDict:
+    def observation_space_sample(self, agent_ids: list = None):
         return {v_id: self.observation_space.sample() for v_id in self._agent_ids}
 
-    def action_space_contains(self, x: MultiAgentDict) -> bool:
+    def action_space_contains(self, x) -> bool:
         return all(self.action_space.contains(v) for v in x.values())
 
-    def observation_space_contains(self, x: MultiAgentDict) -> bool:
+    def observation_space_contains(self, x) -> bool:
         return all(self.observation_space.contains(v) for v in x.values())
 
     def _get_average_speed(self) -> float:
@@ -864,7 +857,7 @@ class IntersectionZooEnv(MultiAgentEnv, TaskSettableEnv):
             for v in self.traffic_state.current_vehicles
         )
 
-    def _get_obs(self, current_rl_vehicle_list: set[str]) -> Dict[AgentID, dict]:
+    def _get_obs(self, current_rl_vehicle_list: set[str]):
         time = self.traffic_state.traci_module.simulation.getTime()
         return {
             vehicle_id: self._get_vehicle_obs(
@@ -994,7 +987,7 @@ class IntersectionZooEnv(MultiAgentEnv, TaskSettableEnv):
         }
         return obs
 
-    def _get_reward(self, vehicle_list: set[str]) -> MultiAgentDict:
+    def _get_reward(self, vehicle_list: set[str]):
         """Compute the reward of the previous action."""
 
         def individual_reward(veh: Vehicle) -> float:

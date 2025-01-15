@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, NamedTuple, Union
 
-from sumo.utils import get_directions, get_lane_counts
+from intersection_zoo.sumo.utils import get_directions, get_lane_counts
 
 """
 Specifies whether approaches have traffic at the same time or not:

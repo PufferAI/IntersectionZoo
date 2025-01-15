@@ -28,10 +28,10 @@ import uuid
 from typing import Optional
 
 import traci.constants as traci_constants  # https://sumo.dlr.de/pydoc/traci.constants.html
-from env.config import IntersectionZooEnvConfig
-from env.task_context import TaskContext
-from sumo.constants import GUI_SETTINGS_FILE
-from sumo.generate_files import generate_temp_sumo_files
+from intersection_zoo.env.config import IntersectionZooEnvConfig
+from intersection_zoo.env.task_context import TaskContext
+from intersection_zoo.sumo.constants import GUI_SETTINGS_FILE
+from intersection_zoo.sumo.generate_files import generate_temp_sumo_files
 
 TRACI_VARS = {
     k[4:].lower(): k

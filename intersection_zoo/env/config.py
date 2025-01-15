@@ -23,8 +23,8 @@
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional
 
-from env.task_context import TaskContext
-from sumo.constants import REGULAR
+from intersection_zoo import TaskContext
+from intersection_zoo.sumo.constants import REGULAR
 
 
 class IntersectionZooEnvConfig(NamedTuple):

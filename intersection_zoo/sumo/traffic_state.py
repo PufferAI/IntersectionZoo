@@ -27,13 +27,13 @@ from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import traci
-from env.config import IntersectionZooEnvConfig
-from env.task_context import TaskContext
-from sumo.physical_models import FuelEmissionsModels
-from sumo.sumo import TRACI_VARS, SubscriptionManager
-from sumo.utils import (get_directions, get_edge_id, get_lane_counts,
+from intersection_zoo.env.config import IntersectionZooEnvConfig
+from intersection_zoo.env.task_context import TaskContext
+from intersection_zoo.sumo.physical_models import FuelEmissionsModels
+from intersection_zoo.sumo.sumo import TRACI_VARS, SubscriptionManager
+from intersection_zoo.sumo.utils import (get_directions, get_edge_id, get_lane_counts,
                         get_splited_edges, is_main_lane)
-from sumo.vehicle import Vehicle
+from intersection_zoo.sumo.vehicle import Vehicle
 
 # Do not use the root logger in Ray workers
 logger = logging.getLogger("sumo")
