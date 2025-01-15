@@ -172,7 +172,7 @@ class IntersectionZooPZEnv(ParallelEnv):
     def map_agents(self):
         agents = []
         raw_agents = []
-        for v_id, vehicle in self.traffic_state.vehicles.items():
+        for v_id, vehicle in self.traffic_state.current_vehicles.items():
             if not vehicle.is_rl:
                 continue
 
@@ -193,15 +193,10 @@ class IntersectionZooPZEnv(ParallelEnv):
         if not warmup:
             for id, action in action_dict.items():
                 v_id = self.inv_agent_map[id]
-                vehicle = self.traffic_state.vehicles[v_id]
-
+                vehicle = self.traffic_state.current_vehicles[v_id]
                 sumo_speed = self.traci.vehicle.getSpeedWithoutTraCI(v_id)
                 diff = sumo_speed - vehicle.previous_step_idm_speed
                     
-                # TODO: Why does this happen?
-                if vehicle.lane_id == '':
-                    continue
-
                 vehicle.previous_step_idm_speed = (
                     self.traffic_state.get_idm_accel(vehicle)
                     * self.config.sim_step_duration
@@ -239,6 +234,10 @@ class IntersectionZooPZEnv(ParallelEnv):
         obs = self._get_obs(self.raw_agents)
         obs = {self.agent_map[k]: v for k, v in obs.items()}
 
+        for k in obs:
+            if k not in reward:
+                reward[k] = 0
+
         v_finished_during_step = {
             v_id for v_id in action_dict.keys() if v_id not in self.agents
         }
@@ -267,10 +266,11 @@ class IntersectionZooPZEnv(ParallelEnv):
         }
         truncated = {v_id: truncation for v_id in terminated}
 
-        if True in list(terminated.values()):
-            breakpoint()
+        info = {}
+        if not warmup and all(list(terminated.values())):
+            info = self.get_metrics()
 
-        return obs, reward, terminated, truncated, {}
+        return obs, reward, terminated, truncated, info
 
     def close(self):
         """
